@@ -3,7 +3,7 @@ import axios from "axios";
 import datepicker from "js-datepicker";
 import "js-datepicker/dist/datepicker.min.css";
 
-const API = "http://localhost:5000/api/expenses";
+const API = "https://server-kasir-garmer.vercel.app/api/expenses";
 
 export default function CashierExpenses() {
   const [expenses, setExpenses] = useState([]);
