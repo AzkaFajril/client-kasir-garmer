@@ -85,7 +85,6 @@ export default function Pos() {
   const subtotal     = cart.reduce((s, i) => s + Number(i.subtotal), 0);
   const total        = subtotal;
   const changeAmount = amountPaid ? Number(amountPaid) - total : 0;
-  const isPosLocked  = !attendance || attendance.clock_out || attendance.status === 'leave' || attendance.status === 'sick';
 
   // Handler tombol utama diproses dengan memunculkan modal konfirmasi kustom
   const handleCheckoutClick = (e) => {
@@ -696,7 +695,10 @@ export default function Pos() {
                 <div key={p.id} className="prod-card" onClick={() => addToCart(p)}>
                   <div className="prod-img">
                     {p.image_url
-                      ? <img src={`{p.image_url}`} alt={p.name} />
+                      ? <img 
+                      src={p.image_url?.startsWith('http') ? p.image_url : `${API_URL}${p.image_url}`} 
+                      alt={p.name} 
+                    />
                       : <div className="prod-img-placeholder">
                           <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
                           <span>No Image</span>
@@ -825,7 +827,7 @@ export default function Pos() {
                 placeholder="Catatan pesanan (opsional)..." />
 
               <button type="submit" className="checkout-btn"
-                disabled={isLoading || cart.length === 0 || isPosLocked}>
+                disabled={isLoading || cart.length === 0}>
                 {isLoading ? (
                   <>
                     <svg style={{ animation:'spin 0.8s linear infinite' }} viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" stroke="currentColor" fill="none" strokeWidth="2"/></svg>
@@ -873,185 +875,185 @@ export default function Pos() {
       )}
 
       {/* ══════════ MODAL STRUK BERHASIL ══════════ */}
-{showSuccessModal && lastTransaction && (
-  <div style={modalOverlayStyle}>
-    <div
-      style={{
-        ...modalContentStyle,
-        maxWidth: "360px",
-        textAlign: "left",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "15px" }}>
-        <span style={{ fontSize: "32px" }}>✅</span>
-        <h3 style={{ margin: "5px 0 0 0", color: "#2d1a10" }}>
-          Transaksi Berhasil!
-        </h3>
-        <p style={{ fontSize: "12px", color: "#888" }}>Toko_Garmer</p>
-      </div>
-
-      <div
-        style={{
-          fontSize: "12px",
-          color: "#444",
-          borderBottom: "1px dashed #ddd",
-          paddingBottom: "10px",
-          marginBottom: "10px",
-        }}
-      >
-        <p>
-          <b>ID Pesanan:</b> {lastTransaction.orderId}
-        </p>
-        <p>
-          <b>Waktu:</b> {lastTransaction.date}
-        </p>
-        <p>
-          <b>Kasir:</b> {lastTransaction.cashier}
-        </p>
-        <p>
-          <b>Metode:</b>{" "}
-          {lastTransaction.paymentMethod === "cash"
-            ? "Tunai"
-            : "QRIS"}
-        </p>
-      </div>
-
-      <div
-        style={{
-          fontSize: "12px",
-          marginBottom: "10px",
-          maxHeight: "150px",
-          overflowY: "auto",
-        }}
-      >
-        {lastTransaction.items.map((item, idx) => (
+      {showSuccessModal && lastTransaction && (
+        <div style={modalOverlayStyle}>
           <div
-            key={idx}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "4px",
+              ...modalContentStyle,
+              maxWidth: "360px",
+              textAlign: "left",
             }}
           >
-            <span>
-              {item.product_name} x{item.quantity}
-            </span>
-            <span>
-              Rp{" "}
-              {Number(item.subtotal).toLocaleString("id-ID")}
-            </span>
+            <div style={{ textAlign: "center", marginBottom: "15px" }}>
+              <span style={{ fontSize: "32px" }}>✅</span>
+              <h3 style={{ margin: "5px 0 0 0", color: "#2d1a10" }}>
+                Transaksi Berhasil!
+              </h3>
+              <p style={{ fontSize: "12px", color: "#888" }}>Toko_Garmer</p>
+            </div>
+
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#444",
+                borderBottom: "1px dashed #ddd",
+                paddingBottom: "10px",
+                marginBottom: "10px",
+              }}
+            >
+              <p>
+                <b>ID Pesanan:</b> {lastTransaction.orderId}
+              </p>
+              <p>
+                <b>Waktu:</b> {lastTransaction.date}
+              </p>
+              <p>
+                <b>Kasir:</b> {lastTransaction.cashier}
+              </p>
+              <p>
+                <b>Metode:</b>{" "}
+                {lastTransaction.paymentMethod === "cash"
+                  ? "Tunai"
+                  : "QRIS"}
+              </p>
+            </div>
+
+            <div
+              style={{
+                fontSize: "12px",
+                marginBottom: "10px",
+                maxHeight: "150px",
+                overflowY: "auto",
+              }}
+            >
+              {lastTransaction.items.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <span>
+                    {item.product_name} x{item.quantity}
+                  </span>
+                  <span>
+                    Rp{" "}
+                    {Number(item.subtotal).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px dashed #ddd",
+                paddingTop: "10px",
+                fontSize: "13px",
+                marginBottom: "15px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontWeight: "bold",
+                }}
+              >
+                <span>Total:</span>
+                <span>
+                  Rp{" "}
+                  {Number(lastTransaction.total).toLocaleString("id-ID")}
+                </span>
+              </div>
+
+              {lastTransaction.paymentMethod === "cash" && (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      color: "#666",
+                    }}
+                  >
+                    <span>Bayar:</span>
+                    <span>
+                      Rp{" "}
+                      {Number(lastTransaction.amountPaid).toLocaleString(
+                        "id-ID"
+                      )}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      color: "#666",
+                    }}
+                  >
+                    <span>Kembali:</span>
+                    <span>
+                      Rp{" "}
+                      {Number(lastTransaction.changeAmount).toLocaleString(
+                        "id-ID"
+                      )}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Tombol */}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+              }}
+            >
+              <button
+                onClick={() => {
+                  window.open(
+                    `/kasir/receipt/${lastTransaction.orderId}`,
+                    "_blank"
+                  );
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#2d1a10",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                🖨 Print
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#c97b3a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
-
-      <div
-        style={{
-          borderTop: "1px dashed #ddd",
-          paddingTop: "10px",
-          fontSize: "13px",
-          marginBottom: "15px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontWeight: "bold",
-          }}
-        >
-          <span>Total:</span>
-          <span>
-            Rp{" "}
-            {Number(lastTransaction.total).toLocaleString("id-ID")}
-          </span>
         </div>
-
-        {lastTransaction.paymentMethod === "cash" && (
-          <>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#666",
-              }}
-            >
-              <span>Bayar:</span>
-              <span>
-                Rp{" "}
-                {Number(lastTransaction.amountPaid).toLocaleString(
-                  "id-ID"
-                )}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#666",
-              }}
-            >
-              <span>Kembali:</span>
-              <span>
-                Rp{" "}
-                {Number(lastTransaction.changeAmount).toLocaleString(
-                  "id-ID"
-                )}
-              </span>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Tombol */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-        }}
-      >
-        <button
-          onClick={() => {
-            window.open(
-              `/kasir/receipt/${lastTransaction.orderId}`,
-              "_blank"
-            );
-          }}
-          style={{
-            flex: 1,
-            padding: "10px",
-            background: "#2d1a10",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          🖨 Print
-        </button>
-
-        <button
-          onClick={() => {
-            setShowSuccessModal(false);
-          }}
-          style={{
-            flex: 1,
-            padding: "10px",
-            background: "#c97b3a",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          Tutup
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </>
   );
 }
