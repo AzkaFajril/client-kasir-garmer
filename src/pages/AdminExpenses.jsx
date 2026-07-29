@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import datepicker from "js-datepicker";
 import "js-datepicker/dist/datepicker.min.css";
+import api from "../api"
 
-const API = "http://localhost:5000/api/expenses";
 
 export default function AdminExpenses() {
   const [expenses, setExpenses] = useState([]);
