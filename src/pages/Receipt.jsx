@@ -89,14 +89,14 @@ export default function Receipt() {
       let result = encoder
         .initialize()
         .align('center')
-        .line('POS KAFE')
-        .line('Jl. Teknologi Informatika No. 1')
-        .line('Telp: 0812-3456-7890')
+        .line('Toko Garmer')
+        .line('Jl. Taman Cibeunying Utara, Cihapit, Kec. Bandung Wetan, Kota Bandung, Jawa Barat 40114')
+        .line('Telp: 0877-7735-5353')
         .line('--------------------------------')
         .align('left')
         .line(`No Order : ${order.order_number}`)
         .line(`Tgl      : ${new Date(order.created_at).toLocaleDateString('id-ID')}`)
-        .line(`Kasir    : ${order.created_by_name}`)
+        .line(`Kasir    : ${cashierName}`)
         .line('--------------------------------');
 
       order.items?.forEach((item) => {
@@ -161,9 +161,9 @@ export default function Receipt() {
         className="bg-white p-8 w-[400px] shadow-lg text-gray-800 font-mono text-sm"
       >
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold">POS KAFE</h1>
-          <p>Jl. Teknologi Informatika No. 1</p>
-          <p>Telp: 0812-3456-7890</p>
+          <h1 className="text-2xl font-bold">TOKO GARMER</h1>
+          <p>Jl. Taman Cibeunying Utara, Cihapit, KOTA BANDUNG</p>
+          <p>Telp: 0877-7735-5353</p>
         </div>
 
         <div className="border-b-2 border-dashed border-gray-400 pb-2 mb-2">
@@ -219,7 +219,7 @@ export default function Receipt() {
         </div>
 
         {/* --- AREA QRIS KHUSUS NON-TUNAI --- */}
-        {order.payment_method === 'non-cash' && (
+        {/* {order.payment_method === 'non-cash' && (
           <div className="mt-6 pt-4 border-t-2 border-dashed border-gray-400 flex flex-col items-center">
             <p className="font-bold text-base mb-3 tracking-widest">SCAN QRIS</p>
             <div className="p-2 border-4 border-gray-800 rounded-lg bg-white">
@@ -233,7 +233,7 @@ export default function Receipt() {
               Silakan scan menggunakan M-Banking atau e-Wallet Anda.
             </p>
           </div>
-        )}
+        )} */}
 
         <div className="text-center mt-8 pt-4 border-t border-gray-300">
           <p>Terima kasih atas kunjungan Anda!</p>

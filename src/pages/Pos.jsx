@@ -2,31 +2,33 @@ import { useState, useEffect } from 'react';
 import api, { API_URL } from '../api';
 import toast, { Toaster } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { QRCodeCanvas } from 'qrcode.react';
 import "../assets/style.css"
 
 export default function Pos() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user')) || { id: 1, name: 'Kasir' };
 
-  const [products, setProducts]           = useState([]);
-  const [cart, setCart]                   = useState([]);
-  const [isLoading, setIsLoading]         = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [amountPaid, setAmountPaid]       = useState('');
-  const [notes, setNotes]                 = useState('');
-  const [searchTerm, setSearchTerm]       = useState('');
+  const [products, setProducts]            = useState([]);
+  const [cart, setCart]                    = useState([]);
+  const [isLoading, setIsLoading]          = useState(false);
+  const [paymentMethod, setPaymentMethod]  = useState('cash');
+  const [amountPaid, setAmountPaid]        = useState('');
+  const [notes, setNotes]                  = useState('');
+  const [searchTerm, setSearchTerm]        = useState('');
 
-  const [showQrisModal, setShowQrisModal] = useState(false);
-  const [qrisData, setQrisData]           = useState('');
-  const [pendingOrderId, setPendingOrderId] = useState(null);
+  // State untuk Modal Konfirmasi Kustom di Tengah
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const [attendance, setAttendance]       = useState(null);
-  const [stats, setStats]                 = useState(null);
+  // State untuk Modal Struk Berhasil
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState(null);
+
+  const [attendance, setAttendance]        = useState(null);
+  const [stats, setStats]                  = useState(null);
   const [isAbsenLoading, setIsAbsenLoading] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [leaveData, setLeaveData]         = useState({ type: 'sick', notes: '' });
-  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [leaveData, setLeaveData]          = useState({ type: 'sick', notes: '' });
+  const [showInfoModal, setShowInfoModal]  = useState(false);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -47,7 +49,6 @@ export default function Pos() {
     };
     fetchInitialData();
 
-    // Auto-refresh attendance setiap 30 detik untuk auto-lock saat shift berakhir
     const refreshInterval = setInterval(async () => {
       if (user?.id) {
         try {
@@ -58,60 +59,6 @@ export default function Pos() {
     }, 30000);
     return () => clearInterval(refreshInterval);
   }, [user.id]);
-
-  useEffect(() => {
-    let interval;
-    if (showQrisModal && pendingOrderId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await api.get(`/api/orders/${pendingOrderId}/status`);
-          if (res.data.status === 'completed') {
-            clearInterval(interval);
-            toast.success('Pembayaran QRIS Diterima! ✅');
-            setShowQrisModal(false);
-            navigate(`/kasir/receipt/${pendingOrderId}`);
-          }
-        } catch {}
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [showQrisModal, pendingOrderId, navigate]);
-
-  const handleClockIn = async () => {
-    setIsAbsenLoading(true);
-    try {
-      const res = await api.post('/api/hr/attendance/clock-in', { user_id: user.id });
-      setAttendance(res.data.data);
-      toast.success(res.data.message);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Gagal absen masuk');
-    } finally { setIsAbsenLoading(false); }
-  };
-
-  const handleClockOut = async () => {
-    if (!window.confirm("Yakin ingin absen pulang dan mengakhiri shift?")) return;
-    setIsAbsenLoading(true);
-    try {
-      const res = await api.post('/api/hr/attendance/clock-out', { user_id: user.id });
-      setAttendance(res.data.data);
-      toast.success(res.data.message);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Gagal absen pulang');
-    } finally { setIsAbsenLoading(false); }
-  };
-
-  const handleSubmitLeave = async (e) => {
-    e.preventDefault();
-    setIsAbsenLoading(true);
-    try {
-      const res = await api.post('/api/hr/attendance/leave', { user_id: user.id, ...leaveData });
-      setAttendance(res.data.data);
-      toast.success('Keterangan berhasil dikirim ke Admin');
-      setShowLeaveModal(false);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Gagal mengirim keterangan');
-    } finally { setIsAbsenLoading(false); }
-  };
 
   const addToCart = (product) => {
     setCart(prev => {
@@ -140,16 +87,24 @@ export default function Pos() {
   const changeAmount = amountPaid ? Number(amountPaid) - total : 0;
   const isPosLocked  = !attendance || attendance.clock_out || attendance.status === 'leave' || attendance.status === 'sick';
 
+  // Handler tombol utama diproses dengan memunculkan modal konfirmasi kustom
   const handleCheckoutClick = (e) => {
     e.preventDefault();
-    if (cart.length === 0) return toast.error('Keranjang masih kosong!');
-    if (paymentMethod === 'cash' && Number(amountPaid) < total) return toast.error('Uang bayar kurang!');
-    if (paymentMethod === 'cash') {
-      if (window.confirm(`Terima pembayaran TUNAI Rp ${Number(amountPaid).toLocaleString('id-ID')}?`)) processTransaction();
-    } else { processTransaction(); }
+
+    if (cart.length === 0) {
+      return toast.error("Keranjang masih kosong!");
+    }
+
+    if (paymentMethod === "cash" && Number(amountPaid) < total) {
+      return toast.error("Uang bayar kurang!");
+    }
+
+    // Tampilkan modal kustom di tengah alih-alih window.confirm bawaan browser
+    setShowConfirmModal(true);
   };
 
   const processTransaction = async () => {
+    setShowConfirmModal(false);
     setIsLoading(true);
     try {
       const payload = {
@@ -158,40 +113,47 @@ export default function Pos() {
         change_amount: paymentMethod === 'non-cash' ? 0 : changeAmount,
         notes, items: cart,
       };
+      
       const response = await api.post('/api/orders', payload);
+      
+      const transactionResult = {
+        orderId: response.data.order_id || 'TRX-' + Date.now(),
+        date: new Date().toLocaleString('id-ID'),
+        cashier: user.name,
+        items: [...cart],
+        total: total,
+        paymentMethod: paymentMethod,
+        amountPaid: paymentMethod === 'cash' ? Number(amountPaid) : total,
+        changeAmount: paymentMethod === 'cash' ? changeAmount : 0,
+        notes: notes
+      };
+
+      setLastTransaction(transactionResult);
+      setShowSuccessModal(true);
+      
       if (paymentMethod === 'non-cash') {
-        setQrisData(response.data.qr_string);
-        setPendingOrderId(response.data.order_id);
-        setShowQrisModal(true);
+        toast.success('Pembayaran QRIS Berhasil Diterima! ✅');
       } else {
         toast.success(`Tunai Sukses! Kembalian: Rp ${changeAmount.toLocaleString('id-ID')}`);
       }
+
+      setCart([]);
+      setAmountPaid('');
+      setNotes('');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Transaksi gagal');
-    } finally { setIsLoading(false); }
-  };
-
-  const handleQrisSuccess = async () => {
-    setIsLoading(true);
-    try {
-      await api.put(`/api/orders/${pendingOrderId}/status`, { status: 'completed' });
-      toast.success('Simulasi Pembayaran QRIS Sukses!');
-      setShowQrisModal(false);
-      navigate(`/kasir/receipt/${pendingOrderId}`);
-    } catch { toast.error('Gagal memperbarui status'); }
-    finally { setIsLoading(false); }
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatTime = (iso) => iso
-    ? new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '—';
-
   return (
     <>
-      <style>{`
+    <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
         :root {
           --espresso:#1a0f0a; --roast:#2d1a10; --crema:#c8a97e;
@@ -397,15 +359,18 @@ export default function Pos() {
           color:#fff; box-shadow:0 3px 10px rgba(201,123,58,0.4); margin-bottom:7px;
         }
         .absen-btn.masuk:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 14px rgba(201,123,58,0.5); }
-        .absen-btn.pulang {
-          background:rgba(192,57,43,0.1); border:1px solid rgba(192,57,43,0.25); color:#e74c3c;
-        }
-        .absen-btn.pulang:hover:not(:disabled) { background:rgba(192,57,43,0.2); }
         .absen-btn.leave  {
           background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); color:rgba(200,169,126,0.8);
           margin-top:6px;
         }
         .absen-btn.leave:hover { background:rgba(255,255,255,0.12); }
+
+        .shift-active-badge {
+          text-align:center; padding:10px; border-radius:9px;
+          background:rgba(39,174,96,0.12); border:1px dashed rgba(39,174,96,0.3);
+          font-size:11.5px; font-weight:700; color:#8fd6ac;
+          text-transform:uppercase; letter-spacing:0.1em;
+        }
 
         .shift-done-badge {
           text-align:center; padding:10px; border-radius:9px;
@@ -698,7 +663,6 @@ export default function Pos() {
         .qris-sim:hover { opacity:0.9; }
         .qris-sim svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; }
       `}</style>
-
       <Toaster
         position="top-center"
         toastOptions={{
@@ -709,10 +673,8 @@ export default function Pos() {
 
       <div className="pos-root">
 
-        {/* ══════════ KIRI ══════════ */}
+        {/* ══════════ KIRI (PRODUK) ══════════ */}
         <div className="pos-left">
-
-          {/* topbar */}
           <div className="prod-topbar">
             <div className="prod-brand">
               <div className="prod-brand-icon">☕</div>
@@ -728,51 +690,6 @@ export default function Pos() {
             </div>
           </div>
 
-          {/* POS BLOCKER */}
-          {isPosLocked && (
-            <div className="pos-blocker">
-              <div className="blocker-card">
-                <div className="blocker-icon">
-                  {attendance?.status === 'sick' ? '🤒' : attendance?.status === 'leave' ? '📝' : '🔒'}
-                </div>
-                <h2 className="blocker-title">
-                  {attendance?.status === 'sick' ? 'Anda Sedang Sakit'
-                  : attendance?.status === 'leave' ? 'Anda Sedang Izin'
-                  : attendance?.clock_out ? ' Shift Telah Selesai'
-                  : 'Mesin Kasir Terkunci'}
-                </h2>
-                {attendance && (attendance.status === 'leave' || attendance.status === 'sick') ? (
-                  <p className="blocker-desc">
-                    Anda tercatat <strong>{attendance.status === 'sick' ? 'SAKIT' : 'IZIN'}</strong> hari ini.
-                    Silakan beristirahat dan pulih.
-                  </p>
-                ) : attendance?.clock_out ? (
-                  <p className="blocker-desc">
-                    Anda sudah <strong>Absen Pulang</strong>. Shift hari ini telah selesai. Mesin kasir terkunci sampai shift berikutnya.
-                  </p>
-                ) : (
-                  <>
-                    <p className="blocker-desc">Anda belum melakukan Absen Masuk. Klik tombol <strong>ABSEN MASUK</strong> di panel kanan untuk mulai melayani pelanggan.</p>
-                    {stats?.shift ? (
-                      <div className="shift-info-box" style={{ background:'rgba(201,123,58,0.07)', border:'1px solid rgba(201,123,58,0.2)' }}>
-                        <p className="shift-info-label" style={{ color:'var(--accent)' }}>Jadwal Anda Hari Ini</p>
-                        <p className="shift-info-val" style={{ color:'var(--roast)' }}>
-                          {stats.shift.name} · {stats.shift.start_time} – {stats.shift.end_time}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="shift-info-box" style={{ background:'rgba(192,57,43,0.07)', border:'1px solid rgba(192,57,43,0.2)' }}>
-                        <p className="shift-info-label" style={{ color:'#c0392b' }}>Belum Ada Shift</p>
-                        <p className="shift-info-val" style={{ color:'#c0392b', fontSize:12 }}>Hubungi Admin untuk mendaftarkan shift Anda.</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* produk grid */}
           <div className="prod-scroll">
             <div className="prod-grid">
               {filteredProducts.map(p => (
@@ -797,83 +714,8 @@ export default function Pos() {
           </div>
         </div>
 
-        {/* ══════════ KANAN ══════════ */}
+        {/* ══════════ KANAN (KERANJANG & CHECKOUT) ══════════ */}
         <div className="pos-right">
-
-          {/* ── ABSENSI WIDGET ── */}
-          <div className="absen-widget">
-            <div className="absen-top">
-              <div className="absen-user">
-                <div className="absen-avatar">{(user.name || 'K')[0].toUpperCase()}</div>
-                <div>
-                  <p className="absen-uname">{user.name}</p>
-                  <p className="absen-urole">{user.role || 'kasir'}</p>
-                </div>
-              </div>
-              <button className="btn-info" onClick={() => setShowInfoModal(true)}>
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                Info Saya
-              </button>
-            </div>
-
-            <p className="absen-status-label">Status Kehadiran</p>
-
-            {!attendance ? (
-              <>
-                <button className="absen-btn masuk" onClick={handleClockIn}
-                  disabled={isAbsenLoading || !stats?.shift}>
-                  {isAbsenLoading ? (
-                    <svg style={{ animation:'spin 0.8s linear infinite' }} viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" stroke="currentColor" fill="none" strokeWidth="2"/></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                  )}
-                  {isAbsenLoading ? 'Memproses...' : 'Absen Masuk'}
-                </button>
-                <button className="absen-btn leave" onClick={() => setShowLeaveModal(true)}>
-                  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Lapor Sakit / Izin
-                </button>
-              </>
-            ) : !attendance.clock_out && attendance.status !== 'leave' && attendance.status !== 'sick' ? (
-              <>
-                <div className="clock-row">
-                  <div className="clock-box">
-                    <p className="clock-box-label">Jam Masuk</p>
-                    <p className="clock-box-val">{formatTime(attendance.clock_in)}</p>
-                  </div>
-                  <div className="clock-box">
-                    <p className="clock-box-label">Status</p>
-                    {attendance.status === 'late' ? (
-                      <>
-                        <p className="clock-box-val" style={{ color:'#e74c3c', fontSize:12 }}>Terlambat</p>
-                        <p className="clock-box-sub" style={{ color:'#e74c3c' }}>
-                          {Math.floor((attendance.late_seconds||0)/3600)}j {Math.floor(((attendance.late_seconds||0)%3600)/60)}m
-                        </p>
-                      </>
-                    ) : (
-                      <p className="clock-box-val" style={{ color:'#27ae60', fontSize:12 }}>Tepat Waktu</p>
-                    )}
-                  </div>
-                </div>
-                <button className="absen-btn pulang" onClick={handleClockOut} disabled={isAbsenLoading}>
-                  {isAbsenLoading ? 'Memproses...' : (
-                    <>
-                      <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                      Absen Pulang
-                    </>
-                  )}
-                </button>
-              </>
-            ) : (
-              <div className="shift-done-badge">
-                {attendance.status === 'sick' ? '🤒 Sedang Sakit'
-                : attendance.status === 'leave' ? '📝 Sedang Izin'
-                : '✓ Shift Selesai'}
-              </div>
-            )}
-          </div>
-
-          {/* ── KERANJANG ── */}
           <div className="cart-header">
             <div className="cart-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinecap="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
@@ -932,52 +774,51 @@ export default function Pos() {
               </div>
 
               {paymentMethod === 'cash' && (
-  <>
-    <div className="cash-input-wrap">
-      <label className="cash-label">Uang Diterima (Rp)</label>
+                <>
+                  <div className="cash-input-wrap">
+                    <label className="cash-label">Uang Diterima (Rp)</label>
+                    <input
+                      type="number"
+                      className="cash-input"
+                      required
+                      value={amountPaid}
+                      min={total}
+                      onChange={(e) => setAmountPaid(Number(e.target.value))}
+                      placeholder="0"
+                    />
 
-      <input
-        type="number"
-        className="cash-input"
-        required
-        value={amountPaid}
-        min={total}
-        onChange={(e) => setAmountPaid(Number(e.target.value))}
-        placeholder="0"
-      />
+                    <div className="quick-money">
+                      {[5000, 10000, 20000, 50000, 100000, 200000].map((nominal) => (
+                        <button
+                          key={nominal}
+                          type="button"
+                          className="cash-quick-btn"
+                          onClick={() => setAmountPaid(nominal)}
+                        >
+                          Rp {nominal.toLocaleString("id-ID")}
+                        </button>
+                      ))}
 
-      <div className="quick-money">
-        {[5000, 10000, 20000, 50000, 100000, 200000].map((nominal) => (
-          <button
-            key={nominal}
-            type="button"
-            className="cash-quick-btn"
-            onClick={() => setAmountPaid(nominal)}
-          >
-            Rp {nominal.toLocaleString("id-ID")}
-          </button>
-        ))}
+                      <button
+                        type="button"
+                        className="cash-quick-btn full"
+                        onClick={() => setAmountPaid(total)}
+                      >
+                        Uang Pas
+                      </button>
+                    </div>
+                  </div>
 
-        <button
-          type="button"
-          className="cash-quick-btn full"
-          onClick={() => setAmountPaid(total)}
-        >
-          Uang Pas
-        </button>
-      </div>
-    </div>
-
-    {changeAmount > 0 && (
-      <div className="change-row">
-        <span className="change-label">Kembalian</span>
-        <span className="change-val">
-          Rp {changeAmount.toLocaleString("id-ID")}
-        </span>
-      </div>
-    )}
-  </>
-)}
+                  {changeAmount > 0 && (
+                    <div className="change-row">
+                      <span className="change-label">Kembalian</span>
+                      <span className="change-val">
+                        Rp {changeAmount.toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
 
               <input type="text" className="notes-input"
                 value={notes} onChange={e => setNotes(e.target.value)}
@@ -993,7 +834,7 @@ export default function Pos() {
                 ) : (
                   <>
                     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    Proses Pembayaran
+                    Proses Pembayaran ({paymentMethod === 'cash' ? 'Tunai' : 'QRIS'})
                   </>
                 )}
               </button>
@@ -1001,168 +842,240 @@ export default function Pos() {
           </div>
         </div>
 
-        {/* ══════ MODAL IZIN/SAKIT ══════ */}
-        {showLeaveModal && (
-          <div className="modal-overlay" onClick={() => setShowLeaveModal(false)}>
-            <div className="modal-box" onClick={e => e.stopPropagation()}>
-              <div className="modal-top">
-                <div className="modal-top-left">
-                  <div className="modal-top-icon">
-                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  </div>
-                  <div>
-                    <p className="modal-title">Lapor Ketidakhadiran</p>
-                    <p className="modal-sub">Kirim keterangan ke Admin</p>
-                  </div>
-                </div>
-                <button className="modal-close" onClick={() => setShowLeaveModal(false)}>✕</button>
-              </div>
-              <div className="modal-body">
-                <form onSubmit={handleSubmitLeave}>
-                  <div className="field">
-                    <label>Jenis Keterangan</label>
-                    <select className="f-select" value={leaveData.type}
-                      onChange={e => setLeaveData({...leaveData, type: e.target.value})}>
-                      <option value="sick">🤒 Sakit</option>
-                      <option value="leave">📝 Izin</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label>Alasan / Catatan</label>
-                    <textarea className="f-textarea" required
-                      value={leaveData.notes} placeholder="Tuliskan alasan lengkap Anda..."
-                      onChange={e => setLeaveData({...leaveData, notes: e.target.value})} />
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn-cancel" onClick={() => setShowLeaveModal(false)}>Batal</button>
-                    <button type="submit" disabled={isAbsenLoading} className="btn-save">
-                      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                      {isAbsenLoading ? 'Mengirim...' : 'Kirim Laporan'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══════ MODAL INFO KARYAWAN ══════ */}
-        {showInfoModal && (
-          <div className="modal-overlay" onClick={() => setShowInfoModal(false)}>
-            <div className="modal-box" onClick={e => e.stopPropagation()}>
-              <div className="modal-top">
-                <div className="modal-top-left">
-                  <div className="modal-top-icon">
-                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                  <div>
-                    <p className="modal-title">Informasi Saya</p>
-                    <p className="modal-sub">Data shift & rekap kehadiran</p>
-                  </div>
-                </div>
-                <button className="modal-close" onClick={() => setShowInfoModal(false)}>✕</button>
-              </div>
-              <div className="modal-body">
-                <div className="info-section">
-                  <p className="info-section-label">Jadwal Shift Aktif</p>
-                  {stats?.shift ? (
-                    <div className="info-box">
-                      <p className="info-shift-name">{stats.shift.name}</p>
-                      <span className="info-shift-time">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        {stats.shift.start_time} – {stats.shift.end_time}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="info-box" style={{ borderColor:'rgba(192,57,43,0.2)', background:'rgba(192,57,43,0.04)' }}>
-                      <p style={{ fontSize:12.5, fontWeight:700, color:'#c0392b' }}>Belum ada jadwal shift. Hubungi Admin.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="info-section">
-                  <p className="info-section-label">Rekap Bulan Ini</p>
-                  <div className="stat-mini-grid">
-                    <div className="stat-mini">
-                      <p className="stat-mini-label">Total Hadir</p>
-                      <p className="stat-mini-val">{stats?.attendance?.total_hadir || 0}</p>
-                      <p style={{ fontSize:10, color:'var(--text-dim)', marginTop:3 }}>hari</p>
-                    </div>
-                    <div className="stat-mini">
-                      <p className="stat-mini-label">Terlambat</p>
-                      <p className="stat-mini-val" style={{ color: stats?.attendance?.total_terlambat > 0 ? '#c0392b' : 'var(--espresso)' }}>
-                        {stats?.attendance?.total_terlambat || 0}
-                      </p>
-                      <p style={{ fontSize:10, color:'var(--text-dim)', marginTop:3 }}>kali</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="info-section" style={{ marginBottom:0 }}>
-                  <p className="info-section-label">Gaji Terakhir</p>
-                  <div className="salary-highlight">
-                    <p className="salary-highlight-label">Gaji Diterima</p>
-                    <p className="salary-highlight-val">
-                      {stats?.last_payroll
-                        ? `Rp ${Number(stats.last_payroll.net_salary).toLocaleString('id-ID')}`
-                        : 'Belum Ada Data'}
-                    </p>
-                    {stats?.last_payroll && (
-                      <p className="salary-highlight-meta">
-                        {stats.last_payroll.period_month} · Status: {stats.last_payroll.status === 'paid' ? '✓ Lunas' : '⏳ Pending'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ marginTop:18, paddingTop:16, borderTop:'1px solid rgba(200,169,126,0.15)' }}>
-                  <button className="btn-save" style={{ width:'100%' }} onClick={() => setShowInfoModal(false)}>
-                    Tutup
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══════ MODAL QRIS ══════ */}
-        {showQrisModal && (
-          <div className="modal-overlay">
-            <div className="modal-box qris-modal">
-              <div className="qris-header">
-                <p className="qris-title">☕ Pembayaran QRIS</p>
-                <p className="qris-sub">Scan dengan aplikasi pembayaran Anda</p>
-              </div>
-              <div className="qris-body">
-                <div className="qris-frame">
-                  {qrisData
-                    ? <QRCodeCanvas value={qrisData} size={200} level="H" />
-                    : <div style={{ width:200, height:200, background:'var(--milk)', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <svg style={{ animation:'spin 1s linear infinite' }} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--crema)" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-                      </div>
-                  }
-                </div>
-                <div className="qris-total-box">
-                  <p className="qris-total-label">Total Tagihan</p>
-                  <p className="qris-total-val">Rp {total.toLocaleString('id-ID')}</p>
-                </div>
-                <div className="qris-waiting">
-                  <div className="qris-spinner" />
-                  Menunggu konfirmasi pembayaran...
-                </div>
-                <div className="qris-btns">
-                  <button className="qris-cancel" onClick={() => setShowQrisModal(false)}>Batal</button>
-                  <button className="qris-sim" onClick={handleQrisSuccess}>
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    Simulasi Berhasil
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* ══════════ MODAL KONFIRMASI PEMBAYARAN DI TENGAH ══════════ */}
+      {showConfirmModal && (
+        <div style={modalOverlayStyle}>
+          <div style={{ ...modalContentStyle, maxWidth: '380px' }}>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>💡</div>
+            <h3 style={{ margin: '0 0 10px 0', color: '#2d1a10' }}>Konfirmasi Pembayaran</h3>
+            <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
+              {paymentMethod === 'cash'
+                ? `Terima pembayaran tunai sebesar Rp ${Number(amountPaid).toLocaleString('id-ID')}?`
+                : `Konfirmasi pembayaran QRIS sebesar Rp ${total.toLocaleString('id-ID')}?`
+              }
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => setShowConfirmModal(false)}
+                style={{ flex: 1, padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Batal
+              </button>
+              <button 
+                onClick={processTransaction}
+                style={{ flex: 1, padding: '10px', background: '#c97b3a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Ya, Lanjutkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ MODAL STRUK BERHASIL ══════════ */}
+{showSuccessModal && lastTransaction && (
+  <div style={modalOverlayStyle}>
+    <div
+      style={{
+        ...modalContentStyle,
+        maxWidth: "360px",
+        textAlign: "left",
+      }}
+    >
+      <div style={{ textAlign: "center", marginBottom: "15px" }}>
+        <span style={{ fontSize: "32px" }}>✅</span>
+        <h3 style={{ margin: "5px 0 0 0", color: "#2d1a10" }}>
+          Transaksi Berhasil!
+        </h3>
+        <p style={{ fontSize: "12px", color: "#888" }}>Toko_Garmer</p>
+      </div>
+
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#444",
+          borderBottom: "1px dashed #ddd",
+          paddingBottom: "10px",
+          marginBottom: "10px",
+        }}
+      >
+        <p>
+          <b>ID Pesanan:</b> {lastTransaction.orderId}
+        </p>
+        <p>
+          <b>Waktu:</b> {lastTransaction.date}
+        </p>
+        <p>
+          <b>Kasir:</b> {lastTransaction.cashier}
+        </p>
+        <p>
+          <b>Metode:</b>{" "}
+          {lastTransaction.paymentMethod === "cash"
+            ? "Tunai"
+            : "QRIS"}
+        </p>
+      </div>
+
+      <div
+        style={{
+          fontSize: "12px",
+          marginBottom: "10px",
+          maxHeight: "150px",
+          overflowY: "auto",
+        }}
+      >
+        {lastTransaction.items.map((item, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "4px",
+            }}
+          >
+            <span>
+              {item.product_name} x{item.quantity}
+            </span>
+            <span>
+              Rp{" "}
+              {Number(item.subtotal).toLocaleString("id-ID")}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          borderTop: "1px dashed #ddd",
+          paddingTop: "10px",
+          fontSize: "13px",
+          marginBottom: "15px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontWeight: "bold",
+          }}
+        >
+          <span>Total:</span>
+          <span>
+            Rp{" "}
+            {Number(lastTransaction.total).toLocaleString("id-ID")}
+          </span>
+        </div>
+
+        {lastTransaction.paymentMethod === "cash" && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                color: "#666",
+              }}
+            >
+              <span>Bayar:</span>
+              <span>
+                Rp{" "}
+                {Number(lastTransaction.amountPaid).toLocaleString(
+                  "id-ID"
+                )}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                color: "#666",
+              }}
+            >
+              <span>Kembali:</span>
+              <span>
+                Rp{" "}
+                {Number(lastTransaction.changeAmount).toLocaleString(
+                  "id-ID"
+                )}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Tombol */}
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+        }}
+      >
+        <button
+          onClick={() => {
+            window.open(
+              `/kasir/receipt/${lastTransaction.orderId}`,
+              "_blank"
+            );
+          }}
+          style={{
+            flex: 1,
+            padding: "10px",
+            background: "#2d1a10",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          🖨 Print
+        </button>
+
+        <button
+          onClick={() => {
+            setShowSuccessModal(false);
+          }}
+          style={{
+            flex: 1,
+            padding: "10px",
+            background: "#c97b3a",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 }
+
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  width: '100vw',
+  height: '100vh',
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 9999,
+};
+
+const modalContentStyle = {
+  backgroundColor: '#fff',
+  padding: '25px',
+  borderRadius: '12px',
+  textAlign: 'center',
+  width: '90%',
+  maxWidth: '400px',
+  boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+  fontFamily: "'DM Sans', sans-serif"
+};

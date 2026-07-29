@@ -11,7 +11,8 @@ const Skeleton = ({ w = '100%', h = 14, r = 8 }) => (
   }} />
 );
 
-const getDuration = (start, end) => {
+const getDuration = (start, end, isFlexible) => {
+  if (isFlexible) return 'Bebas';
   if (!start || !end) return '—';
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
@@ -29,7 +30,7 @@ export default function AdminShifts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
   const [searchTerm, setSearchTerm]   = useState('');
-  const [formData, setFormData]       = useState({ name: '', start_time: '', end_time: '' });
+  const [formData, setFormData]       = useState({ name: '', start_time: '', end_time: '', is_flexible: false });
   const [editingShift, setEditingShift] = useState(null); // null = tambah baru, object = edit
 
   useEffect(() => { fetchShifts(); }, []);
@@ -50,14 +51,19 @@ export default function AdminShifts() {
     e.preventDefault();
     setIsLoading(true);
     try {
+      // Kalau flexible, jam masuk/pulang tidak dikirim (biar backend simpan NULL)
+      const payload = formData.is_flexible
+        ? { name: formData.name, is_flexible: true, start_time: null, end_time: null }
+        : { name: formData.name, is_flexible: false, start_time: formData.start_time, end_time: formData.end_time };
+
       if (editingShift) {
-        await api.put(`/api/hr/shifts/${editingShift.id}`, formData);
+        await api.put(`/api/hr/shifts/${editingShift.id}`, payload);
         toast.success('Shift berhasil diperbarui!');
       } else {
-        await api.post('/api/hr/shifts', formData);
+        await api.post('/api/hr/shifts', payload);
         toast.success('Shift baru berhasil ditambahkan!');
       }
-      setFormData({ name: '', start_time: '', end_time: '' });
+      setFormData({ name: '', start_time: '', end_time: '', is_flexible: false });
       setEditingShift(null);
       setIsModalOpen(false);
       fetchShifts();
@@ -74,6 +80,7 @@ export default function AdminShifts() {
       name: shift.name,
       start_time: shift.start_time?.slice(0, 5) || '',
       end_time: shift.end_time?.slice(0, 5) || '',
+      is_flexible: !!shift.is_flexible,
     });
     setIsModalOpen(true);
   };
@@ -89,10 +96,11 @@ export default function AdminShifts() {
     }
   };
 
-  const filtered      = shifts.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  const morningCount  = shifts.filter(s => parseInt(s.start_time) < 12).length;
-  const afternoonCount = shifts.filter(s => parseInt(s.start_time) >= 12).length;
-  const previewDuration = getDuration(formData.start_time, formData.end_time);
+  const filtered        = shifts.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const morningCount    = shifts.filter(s => !s.is_flexible && parseInt(s.start_time) < 12).length;
+  const afternoonCount  = shifts.filter(s => !s.is_flexible && parseInt(s.start_time) >= 12).length;
+  const flexibleCount   = shifts.filter(s => s.is_flexible).length;
+  const previewDuration = getDuration(formData.start_time, formData.end_time, formData.is_flexible);
 
   return (
     <>
@@ -123,8 +131,8 @@ export default function AdminShifts() {
         .breadcrumb svg  { width:12px; height:12px; stroke:var(--text-dim); fill:none; stroke-width:2; stroke-linecap:round; }
 
         /* ── summary strip ── */
-        .summary-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
-        @media(max-width:640px){ .summary-strip{ grid-template-columns:1fr 1fr; } }
+        .summary-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        @media(max-width:900px){ .summary-strip{ grid-template-columns:1fr 1fr; } }
         .sum-card {
           background:#fff; border-radius:14px; padding:16px 18px;
           box-shadow:0 2px 10px rgba(0,0,0,0.05); border:1px solid rgba(0,0,0,0.05);
@@ -174,7 +182,7 @@ export default function AdminShifts() {
         .count-badge     { font-size:11px; font-weight:700; background:rgba(201,123,58,0.1); color:var(--accent); padding:3px 10px; border-radius:20px; }
 
         .tbl-scroll { overflow-x:auto; }
-        table  { width:100%; border-collapse:collapse; min-width:520px; }
+        table  { width:100%; border-collapse:collapse; min-width:560px; }
         thead tr { background:var(--foam); border-bottom:1px solid rgba(0,0,0,0.07); }
         th { padding:11px 18px; font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.1em; text-align:left; }
         tbody tr { border-bottom:1px solid rgba(0,0,0,0.05); transition:background 0.15s; }
@@ -200,6 +208,11 @@ export default function AdminShifts() {
         .badge-time svg { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; }
         .badge-start { background:rgba(39,174,96,0.1);  border:1px solid rgba(39,174,96,0.2);  color:#1e8449; }
         .badge-end   { background:rgba(192,57,43,0.1);  border:1px solid rgba(192,57,43,0.2);  color:#c0392b; }
+        .badge-flexible {
+          display:inline-flex; align-items:center; gap:5px;
+          padding:4px 11px; border-radius:20px; font-size:12px; font-weight:700;
+          background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.2); color:#7c3aed;
+        }
         .duration-text { font-size:12.5px; color:var(--text-dim); font-weight:600; }
 
         /* ── empty ── */
@@ -269,6 +282,27 @@ export default function AdminShifts() {
         .duration-preview-label { font-size:11px; color:var(--text-dim); font-weight:600; }
         .duration-preview-val   { font-size:16px; font-weight:800; color:var(--accent); }
 
+        /* ── flexible toggle ── */
+        .flex-toggle-row {
+          display:flex; align-items:center; justify-content:space-between;
+          background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.18);
+          border-radius:10px; padding:12px 14px; margin-bottom:16px; cursor:pointer;
+        }
+        .flex-toggle-text { display:flex; flex-direction:column; gap:2px; }
+        .flex-toggle-title { font-size:13px; font-weight:700; color:var(--espresso); }
+        .flex-toggle-sub   { font-size:11px; color:var(--text-dim); }
+        .switch { position:relative; width:40px; height:22px; flex-shrink:0; }
+        .switch input { opacity:0; width:0; height:0; }
+        .switch-track {
+          position:absolute; inset:0; background:#d8cdbf; border-radius:20px; transition:0.2s; cursor:pointer;
+        }
+        .switch-track::before {
+          content:''; position:absolute; width:16px; height:16px; left:3px; top:3px;
+          background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2);
+        }
+        .switch input:checked + .switch-track { background:#7c3aed; }
+        .switch input:checked + .switch-track::before { transform:translateX(18px); }
+
         .modal-footer { display:flex; gap:10px; margin-top:4px; padding-top:18px; border-top:1px solid rgba(0,0,0,0.07); }
         .btn-cancel {
           flex:1; height:44px; border-radius:10px;
@@ -336,26 +370,44 @@ export default function AdminShifts() {
                     />
                   </div>
 
-                  <div className="time-row-modal">
-                    <div>
-                      <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-dim)', textTransform:'uppercase', letterSpacing:'0.09em', marginBottom:7 }}>Jam Masuk</label>
-                      <input
-                        type="time" className="f-input"
-                        value={formData.start_time} required
-                        onChange={e => setFormData(p => ({ ...p, start_time: e.target.value }))}
-                      />
+                  {/* Toggle Shift Flexible */}
+                  <label className="flex-toggle-row">
+                    <div className="flex-toggle-text">
+                      <span className="flex-toggle-title">Shift Flexible</span>
+                      <span className="flex-toggle-sub">Karyawan bisa absen kapan saja, tanpa batas jam & tidak dihitung telat</span>
                     </div>
-                    <div>
-                      <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-dim)', textTransform:'uppercase', letterSpacing:'0.09em', marginBottom:7 }}>Jam Pulang</label>
+                    <span className="switch">
                       <input
-                        type="time" className="f-input"
-                        value={formData.end_time} required
-                        onChange={e => setFormData(p => ({ ...p, end_time: e.target.value }))}
+                        type="checkbox"
+                        checked={formData.is_flexible}
+                        onChange={e => setFormData(p => ({ ...p, is_flexible: e.target.checked }))}
                       />
-                    </div>
-                  </div>
+                      <span className="switch-track" />
+                    </span>
+                  </label>
 
-                  {formData.start_time && formData.end_time && (
+                  {!formData.is_flexible && (
+                    <div className="time-row-modal">
+                      <div>
+                        <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-dim)', textTransform:'uppercase', letterSpacing:'0.09em', marginBottom:7 }}>Jam Masuk</label>
+                        <input
+                          type="time" className="f-input"
+                          value={formData.start_time} required={!formData.is_flexible}
+                          onChange={e => setFormData(p => ({ ...p, start_time: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-dim)', textTransform:'uppercase', letterSpacing:'0.09em', marginBottom:7 }}>Jam Pulang</label>
+                        <input
+                          type="time" className="f-input"
+                          value={formData.end_time} required={!formData.is_flexible}
+                          onChange={e => setFormData(p => ({ ...p, end_time: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {!formData.is_flexible && formData.start_time && formData.end_time && (
                     <div className="duration-preview">
                       <span className="duration-preview-label">Durasi Shift</span>
                       <span className="duration-preview-val">{previewDuration}</span>
@@ -421,6 +473,13 @@ export default function AdminShifts() {
               <p className="sum-value">{isFetching ? '—' : afternoonCount}</p>
             </div>
           </div>
+          <div className="sum-card">
+            <div className="sum-icon" style={{ background:'rgba(124,58,237,0.1)' }}>🔄</div>
+            <div>
+              <p className="sum-label">Flexible</p>
+              <p className="sum-value">{isFetching ? '—' : flexibleCount}</p>
+            </div>
+          </div>
         </div>
 
         {/* ── TOOLBAR ── */}
@@ -436,7 +495,7 @@ export default function AdminShifts() {
           </div>
           <button
             className="btn-add"
-            onClick={() => { setEditingShift(null); setFormData({ name:'', start_time:'', end_time:'' }); setIsModalOpen(true); }}
+            onClick={() => { setEditingShift(null); setFormData({ name:'', start_time:'', end_time:'', is_flexible:false }); setIsModalOpen(true); }}
           >
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Tambah Shift
@@ -506,20 +565,31 @@ export default function AdminShifts() {
                           <span className="shift-name">{shift.name}</span>
                         </div>
                       </td>
+                      {shift.is_flexible ? (
+                        <td colSpan="2">
+                          <span className="badge-flexible">
+                            <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                            Flexible — bebas jam
+                          </span>
+                        </td>
+                      ) : (
+                        <>
+                          <td>
+                            <span className="badge-time badge-start">
+                              <svg viewBox="0 0 24 24"><polyline points="5 12 12 5 19 12"/></svg>
+                              {shift.start_time}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="badge-time badge-end">
+                              <svg viewBox="0 0 24 24"><polyline points="19 12 12 19 5 12"/></svg>
+                              {shift.end_time}
+                            </span>
+                          </td>
+                        </>
+                      )}
                       <td>
-                        <span className="badge-time badge-start">
-                          <svg viewBox="0 0 24 24"><polyline points="5 12 12 5 19 12"/></svg>
-                          {shift.start_time}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="badge-time badge-end">
-                          <svg viewBox="0 0 24 24"><polyline points="19 12 12 19 5 12"/></svg>
-                          {shift.end_time}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="duration-text">{getDuration(shift.start_time, shift.end_time)}</span>
+                        <span className="duration-text">{getDuration(shift.start_time, shift.end_time, shift.is_flexible)}</span>
                       </td>
                       <td>
                         <div className="actions-cell">

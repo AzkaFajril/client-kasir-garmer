@@ -68,15 +68,17 @@ export default function AdminLayout() {
         { path: '/admin/reports',      label: 'Laporan Penjualan', icon: ReportIcon },
       ]
     },
-    {
-      label: 'SDM & Penggajian',
-      items: [
-        { path: '/admin/employees',          label: 'Manajemen SDM',     icon: EmployeeIcon },
-        { path: '/admin/shifts',             label: 'Manajemen Shift',   icon: ShiftIcon },
-        { path: '/admin/attendance-history', label: 'Riwayat Kehadiran', icon: AttendanceIcon },
-        { path: '/admin/payrolls',           label: 'Manajemen Gaji',    icon: PayrollsIcon },
-      ]
-    },
+   /*
+  {
+    label: 'SDM & Penggajian',
+    items: [
+      { path: '/admin/employees',        label: 'Manajemen SDM',    icon: EmployeeIcon },
+      { path: '/admin/shifts',            label: 'Manajemen Shift',  icon: ShiftIcon },
+      { path: '/admin/attendance-history', label: 'Riwayat Kehadiran', icon: AttendanceIcon },
+      { path: '/admin/payrolls',          label: 'Manajemen Gaji',    icon: PayrollsIcon },
+    ]
+  },
+*/
     {
       label: 'Sistem',
       items: [

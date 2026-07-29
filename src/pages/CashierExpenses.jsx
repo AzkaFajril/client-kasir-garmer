@@ -218,7 +218,6 @@ export default function CashierExpenses() {
         headers: { Authorization: `Bearer ${getToken()}` },
       };
   
-      // Kirim nama kasir langsung ke backend
       const payload = {
         ...form,
         created_by: cashierName, 
@@ -227,7 +226,6 @@ export default function CashierExpenses() {
   
       await axios.post(API, payload, config);
   
-      // Reset Form & Load data lagi
       setForm({
         title: "",
         description: "",
@@ -317,7 +315,6 @@ export default function CashierExpenses() {
         }
       `}</style>
 
-      {/* --- OVERLAY LOADING DI TENGAH LAYAR --- */}
       {loading && (
         <div style={styles.overlay}>
           <div style={styles.loadingBox}>
@@ -327,7 +324,6 @@ export default function CashierExpenses() {
         </div>
       )}
 
-      {/* --- OVERLAY NOTIFIKASI DI TENGAH LAYAR --- */}
       {notification.show && (
         <div style={styles.overlay}>
           <div style={styles.notifBox}>
@@ -336,9 +332,7 @@ export default function CashierExpenses() {
             ) : (
               <div style={styles.errorIcon}>✕</div>
             )}
-
             <p style={styles.notifText}>{notification.message}</p>
-
             {notification.type === "error" && (
               <button onClick={closeNotification} style={styles.notifButton}>
                 Tutup
@@ -355,7 +349,6 @@ export default function CashierExpenses() {
         </p>
       </div>
 
-      {/* Form Input Kasir */}
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Tambah Pengeluaran Baru</h3>
         <div style={styles.grid}>
@@ -394,7 +387,6 @@ export default function CashierExpenses() {
             />
           </div>
 
-          {/* Input Nama Kasir (Otomatis & Read-Only) */}
           <div style={styles.inputGroup}>
             <label style={styles.label}>Petugas Input (Kasir)</label>
             <input
@@ -437,7 +429,6 @@ export default function CashierExpenses() {
         </div>
       </div>
 
-      {/* Filter & Summary Section */}
       <div style={styles.tableHeaderSection}>
         <div style={styles.filterGroup}>
           <input
@@ -479,7 +470,6 @@ export default function CashierExpenses() {
         </div>
       </div>
 
-      {/* Table Histori (Read-Only) */}
       <div style={styles.tableWrap}>
         <table style={styles.table}>
           <thead>
@@ -494,7 +484,7 @@ export default function CashierExpenses() {
           </thead>
           <tbody>
             {filtered.map((e, i) => (
-              <tr key={e.id} style={styles.tr}>
+              <tr key={e.id || i} style={styles.tr}>
                 <td style={styles.td}>{i + 1}</td>
                 <td style={{ ...styles.td, fontWeight: "600", color: "#333" }}>
                   {e.title}
@@ -536,7 +526,6 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
     position: "relative",
   },
-  // --- Style Overlay ---
   overlay: {
     position: "fixed",
     top: 0,
@@ -549,7 +538,6 @@ const styles = {
     alignItems: "center",
     zIndex: 9999,
   },
-  // --- Loading Box ---
   loadingBox: {
     background: "#ffffff",
     padding: "30px 40px",
@@ -575,7 +563,6 @@ const styles = {
     fontWeight: "600",
     color: "#333",
   },
-  // --- Notification Box ---
   notifBox: {
     background: "#ffffff",
     padding: "24px 32px",
@@ -772,22 +759,30 @@ const styles = {
   tableWrap: {
     background: "#fff",
     borderRadius: "12px",
-    overflow: "hidden",
+    overflowY: "auto",      // Mengaktifkan scroll vertikal
+    overflowX: "auto",      // Mengaktifkan scroll horizontal jika layar sempit
+    maxHeight: "380px",     // BATAS TINGGI: Menentukan tinggi maksimal sebelum scroll aktif
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
     border: "1px solid #e9ecef",
+    position: "relative",
   },
   table: {
     width: "100%",
+    minWidth: "700px",      // Memastikan tabel tidak terkompres terlalu kecil di layar sempit
     borderCollapse: "collapse",
     textAlign: "left",
     fontSize: "14px",
   },
+ 
   th: {
     background: "#f1f3f5",
     color: "#495057",
     padding: "14px 16px",
     fontWeight: "600",
     borderBottom: "1px solid #dee2e6",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
   },
   tr: {
     borderBottom: "1px solid #f1f3f5",

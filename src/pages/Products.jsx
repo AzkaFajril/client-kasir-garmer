@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api, { API_URL } from '../api';
+import api from '../api';
 import toast, { Toaster } from 'react-hot-toast';
 
 const formatRp = (v) => 'Rp ' + Number(v).toLocaleString('id-ID');
@@ -25,9 +25,8 @@ export default function Products() {
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    name: '', category_id: '', price: '', stock: '', description: '', is_available: true
+    name: '', category_id: '', price: '', stock: '', description: '', imageFile: null, is_available: true
   });
-  const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => { fetchProducts(); fetchCategories(); }, []);
 
@@ -54,39 +53,60 @@ export default function Products() {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    setImageFile(file);
-    if (file) setImagePreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setImagePreview(URL.createObjectURL(file));
+    setFormData(p => ({ ...p, imageFile: file }));
   };
 
   const handleOpenAdd = () => {
-    setFormData({ name: '', category_id: '', price: '', stock: '', description: '', is_available: true });
-    setImageFile(null); setImagePreview(null); setEditId(null); setIsModalOpen(true);
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setFormData({ name: '', category_id: '', price: '', stock: '', description: '', imageFile: null, is_available: true });
+    setImagePreview(null); setEditId(null); setIsModalOpen(true);
   };
 
   const handleOpenEdit = (p) => {
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setFormData({
       name: p.name, category_id: p.category_id, price: p.price,
-      stock: p.stock, description: p.description || '', is_available: p.is_available
+      stock: p.stock, description: p.description || '', imageFile: null, is_available: p.is_available
     });
-    setImageFile(null);
-    setImagePreview(p.image_url ? `${API_URL}${p.image_url}` : null);
+    setImagePreview(p.image_url || null);
     setEditId(p.id); setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => { setIsModalOpen(false); setEditId(null); setImagePreview(null); };
+  const handleCloseModal = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setIsModalOpen(false); setEditId(null); setImagePreview(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    
     const data = new FormData();
-    Object.entries(formData).forEach(([k, v]) => data.append(k, v));
-    if (imageFile) data.append('image', imageFile);
+    data.append('name', formData.name);
+    data.append('category_id', formData.category_id);
+    data.append('price', formData.price);
+    data.append('stock', formData.stock || 0);
+    data.append('description', formData.description || '');
+    data.append('is_available', formData.is_available);
+    
+    if (formData.imageFile) {
+      data.append('image', formData.imageFile);
+    }
+
     try {
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
       if (editId) {
-        await api.put(`/api/products/${editId}`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.put(`/api/products/${editId}`, data, config);
         toast.success('Produk berhasil diperbarui!');
       } else {
-        await api.post('/api/products', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.post('/api/products', data, config);
         toast.success('Produk berhasil ditambahkan!');
       }
       handleCloseModal(); fetchProducts();
@@ -130,7 +150,6 @@ export default function Products() {
         }
         @media(max-width:640px){.prod-root{padding:14px}}
 
-        /* header */
         .page-header { margin-bottom:24px; }
         .page-header h1 {
           font-family:'Playfair Display',serif;
@@ -144,7 +163,6 @@ export default function Products() {
         .breadcrumb span { color:var(--accent); font-weight:600; }
         .breadcrumb svg { width:12px;height:12px;stroke:var(--text-dim);fill:none;stroke-width:2;stroke-linecap:round; }
 
-        /* toolbar */
         .toolbar {
           display:flex; align-items:center; justify-content:space-between;
           gap:12px; margin-bottom:20px; flex-wrap:wrap;
@@ -181,7 +199,6 @@ export default function Products() {
         .btn-add:hover { opacity:0.85; }
         .btn-add svg { width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round; }
 
-        /* table card */
         .table-card {
           background:#fff; border-radius:16px;
           box-shadow:0 2px 12px rgba(0,0,0,0.06);
@@ -230,10 +247,7 @@ export default function Products() {
           padding:3px 10px; border-radius:20px;
         }
         .price-text { font-weight:700; color:var(--espresso); }
-        .stock-num {
-          font-weight:700; font-size:14px;
-          color: var(--espresso);
-        }
+        .stock-num { font-weight:700; font-size:14px; color:var(--espresso); }
         .stock-low { color:#c0392b; }
         .status-pill {
           display:inline-flex; align-items:center; gap:5px;
@@ -265,13 +279,11 @@ export default function Products() {
         .btn-delete:hover { background:rgba(192,57,43,0.18); }
         .btn-delete svg { width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round; }
 
-        /* empty */
         .empty-cell { padding:56px 20px; text-align:center; }
         .empty-icon { width:52px;height:52px;background:var(--milk);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px; }
         .empty-text { font-size:14px;color:var(--text-dim);font-weight:600; }
         .empty-sub { font-size:12px;color:#bba890;margin-top:4px; }
 
-        /* ─── MODAL ─── */
         .modal-overlay {
           position:fixed; inset:0;
           background:rgba(10,5,2,0.55); backdrop-filter:blur(3px);
@@ -334,7 +346,6 @@ export default function Products() {
         .field-row { display:flex; gap:14px; }
         .field-row .field { flex:1; margin-bottom:0; }
 
-        /* image upload */
         .img-upload-zone {
           border:2px dashed rgba(201,123,58,0.3); border-radius:12px;
           padding:16px; text-align:center; cursor:pointer;
@@ -353,7 +364,6 @@ export default function Products() {
         .img-upload-text { font-size:12px; color:var(--text-dim); }
         .img-upload-text strong { color:var(--accent); }
 
-        /* toggle */
         .toggle-row {
           display:flex; align-items:center; justify-content:space-between;
           background:var(--foam); border:1.5px solid rgba(0,0,0,0.08);
@@ -375,7 +385,6 @@ export default function Products() {
         .toggle-on::after { transform:translateX(20px); }
         .toggle-off { background:#d1cdc8; }
 
-        /* modal footer */
         .modal-footer {
           display:flex; gap:10px; margin-top:22px;
           padding-top:18px; border-top:1px solid rgba(0,0,0,0.07);
@@ -398,7 +407,6 @@ export default function Products() {
         .btn-modal-save:disabled { opacity:0.5; cursor:not-allowed; }
         .btn-modal-save svg { width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round; }
 
-        /* delete modal */
         .del-modal-overlay {
           position:fixed; inset:0; background:rgba(10,5,2,0.5); backdrop-filter:blur(3px);
           z-index:110; display:flex; align-items:center; justify-content:center; padding:20px;
@@ -421,7 +429,6 @@ export default function Products() {
       <div className="prod-root">
         <Toaster position="top-right" toastOptions={{ style: { fontFamily: 'DM Sans', fontSize: 13 } }} />
 
-        {/* Delete Modal */}
         {deleteId && (
           <div className="del-modal-overlay" onClick={() => setDeleteId(null)}>
             <div className="del-modal-box" onClick={e => e.stopPropagation()}>
@@ -436,7 +443,6 @@ export default function Products() {
           </div>
         )}
 
-        {/* Product Modal */}
         {isModalOpen && (
           <div className="modal-overlay" onClick={handleCloseModal}>
             <div className="modal-box" onClick={e => e.stopPropagation()}>
@@ -451,7 +457,6 @@ export default function Products() {
               <div className="modal-body">
                 <form onSubmit={handleSubmit}>
 
-                  {/* Image Upload */}
                   <div className="field">
                     <label>Foto Produk</label>
                     <div className="img-upload-zone">
@@ -461,19 +466,21 @@ export default function Products() {
                         : <div className="img-upload-icon">🖼️</div>
                       }
                       <p className="img-upload-text">
-                        {imagePreview ? <strong>Klik untuk ganti foto</strong> : <><strong>Klik untuk upload</strong> atau drag & drop</>}
+                        {imagePreview ? (
+                          <strong>Klik untuk ganti foto</strong>
+                        ) : (
+                          <><strong>Klik untuk upload</strong> atau drag & drop</>
+                        )}
                       </p>
                     </div>
                   </div>
 
-                  {/* Name */}
                   <div className="field">
                     <label>Nama Produk *</label>
                     <input type="text" name="name" required value={formData.name}
                       onChange={handleInputChange} placeholder="Contoh: Cappuccino Premium" className="field-input" />
                   </div>
 
-                  {/* Category */}
                   <div className="field">
                     <label>Kategori *</label>
                     <select name="category_id" required value={formData.category_id}
@@ -483,7 +490,6 @@ export default function Products() {
                     </select>
                   </div>
 
-                  {/* Price + Stock */}
                   <div className="field-row" style={{ marginBottom: 16 }}>
                     <div className="field">
                       <label>Harga (Rp) *</label>
@@ -499,7 +505,6 @@ export default function Products() {
                     </div>
                   </div>
 
-                  {/* Description */}
                   <div className="field">
                     <label>Deskripsi</label>
                     <textarea name="description" value={formData.description}
@@ -507,7 +512,6 @@ export default function Products() {
                       className="field-textarea" />
                   </div>
 
-                  {/* Availability Toggle */}
                   <div className="field">
                     <label>Ketersediaan</label>
                     <div className="toggle-row">
@@ -525,7 +529,6 @@ export default function Products() {
                     </div>
                   </div>
 
-                  {/* Footer */}
                   <div className="modal-footer">
                     <button type="button" className="btn-modal-cancel" onClick={handleCloseModal}>Batal</button>
                     <button type="submit" disabled={isLoading} className="btn-modal-save">
@@ -550,7 +553,6 @@ export default function Products() {
           </div>
         )}
 
-        {/* Page Header */}
         <div className="page-header">
           <div className="breadcrumb">
             <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -562,7 +564,6 @@ export default function Products() {
           <p>Kelola semua produk yang tersedia di menu kafe</p>
         </div>
 
-        {/* Toolbar */}
         <div className="toolbar">
           <div className="search-wrap">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -578,7 +579,6 @@ export default function Products() {
           </button>
         </div>
 
-        {/* Table */}
         <div className="table-card">
           <div className="table-header-bar">
             <div className="table-title">
@@ -630,7 +630,7 @@ export default function Products() {
                   <tr key={p.id}>
                     <td>
                       {p.image_url
-                        ? <img src={`${API_URL}${p.image_url}`} alt={p.name} className="prod-thumb" />
+                        ? <img src={p.image_url} alt={p.name} className="prod-thumb" />
                         : <div className="prod-thumb-placeholder">☕</div>
                       }
                     </td>

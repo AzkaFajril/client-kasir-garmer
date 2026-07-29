@@ -453,10 +453,7 @@ export default function KasirAbsen() {
                   <p className="presence-val" style={{ color:'#1a7a4a' }}>{stats?.attendance?.total_hadir || 0}</p>
                   <p className="presence-label" style={{ color:'#1a7a4a' }}>Hari Hadir</p>
                 </div>
-                <div className="presence-box" style={{ background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.12)' }}>
-                  <p className="presence-val" style={{ color:'#2563eb' }}>26</p>
-                  <p className="presence-label" style={{ color:'#2563eb' }}>Target Hari</p>
-                </div>
+                
               </div>
             )}
           </div>

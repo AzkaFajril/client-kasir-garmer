@@ -36,7 +36,7 @@ const navItems = [
     { path: '/kasir/pos',label: 'Menu Utama',        icon: POSIcon     },
     { path: '/kasir/BiayaOprasional',     label: 'Biaya Oprasional',        icon: POSIcon     },
     { path: '/kasir/history', label: 'Riwayat Transaksi', icon: HistoryIcon },
-    { path: '/kasir/absen',   label: 'Absen & Gaji',      icon: AbsenIcon   }, 
+    { path: '/kasir/absen',   label: 'Absen',      icon: AbsenIcon   }, 
     { path: '/kasir/profile', label: 'Profil Saya',       icon: ProfileIcon },
   ];
 

@@ -73,11 +73,12 @@ const StatCard = ({ label, value, sub, icon, accentColor, bgColor, loading }) =>
 );
 
 /* ══════════════════════════════════════════
-   MAIN COMPONENT
+    MAIN COMPONENT
 ══════════════════════════════════════════ */
 export default function AdminDashboard() {
-  const [data, setData]           = useState(null);
+  const [data, setData]             = useState(null);
   const [salesData, setSalesData] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState({ cash: 0, nonCash: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -91,13 +92,45 @@ export default function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const res = await api.get('/api/dashboard');
-      setData(res.data);
-      const formatted = (res.data.sales_data || []).map(item => ({
+      const [dashRes, ordersRes] = await Promise.all([
+        api.get('/api/dashboard'),
+        api.get('/api/orders').catch(() => ({ data: [] }))
+      ]);
+
+      setData(dashRes.data);
+
+      const formatted = (dashRes.data.sales_data || []).map(item => ({
         label: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
         value: Number(item.daily_revenue),
       }));
       setSalesData(formatted);
+
+      // --- LOGIKA REAL-TIME METODE PEMBAYARAN DARI /api/orders ---
+      const ordersList = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data.data || []);
+      
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-' + 
+                       String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(today.getDate()).padStart(2, '0');
+
+      let cashCount = 0;
+      let nonCashCount = 0;
+
+      ordersList.forEach(order => {
+        const orderDate = order.created_at ? order.created_at.split('T')[0] : '';
+        if (orderDate === todayStr) {
+          const method = (order.payment_method || '').toLowerCase().trim();
+          
+          if (method === 'cash' || method === 'tunai') {
+            cashCount++;
+          } else if (method === 'non-cash' || method === 'non cash' || method === 'qris' || method === 'transfer') {
+            nonCashCount++;
+          }
+        }
+      });
+
+      setPaymentSummary({ cash: cashCount, nonCash: nonCashCount });
+
     } catch {
       toast.error('Gagal mengambil data dashboard');
     } finally {
@@ -117,18 +150,14 @@ export default function AdminDashboard() {
         }
         @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:0.4}}
-        @keyframes pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0.4)}70%{box-shadow:0 0 0 6px rgba(37,99,235,0)}}
         @keyframes breathe{0%,100%{opacity:1}50%{opacity:0.5}}
 
-        /* ─── ROOT ─── */
         .dash-root{
           min-height:100%; background:var(--foam); padding:26px;
           font-family:'DM Sans',sans-serif; animation:fadeUp 0.3s ease;
         }
         @media(max-width:640px){.dash-root{padding:14px}}
 
-        /* ─── HEADER ─── */
         .dash-header{
           display:flex; align-items:center; justify-content:space-between;
           gap:12px; margin-bottom:20px; flex-wrap:wrap;
@@ -158,7 +187,6 @@ export default function AdminDashboard() {
         .refresh-btn:hover{ opacity:0.85; }
         .refresh-btn svg{ width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; }
 
-        /* ─── STAT GRID ─── */
         .stat-grid{
           display:grid; grid-template-columns:repeat(4,1fr);
           gap:14px; margin-bottom:20px;
@@ -166,7 +194,6 @@ export default function AdminDashboard() {
         @media(max-width:1100px){ .stat-grid{ grid-template-columns:repeat(2,1fr); } }
         @media(max-width:520px){ .stat-grid{ grid-template-columns:1fr; } }
 
-        /* ─── MAIN GRID ─── */
         .main-grid{
           display:grid;
           grid-template-columns:1fr 300px;
@@ -174,10 +201,8 @@ export default function AdminDashboard() {
         }
         @media(max-width:1000px){ .main-grid{ grid-template-columns:1fr; } }
 
-        /* ─── LEFT COLUMN ─── */
         .left-col{ display:flex; flex-direction:column; gap:18px; }
 
-        /* ─── CARD ─── */
         .card{
           background:#fff; border-radius:16px;
           box-shadow:0 2px 12px rgba(0,0,0,0.06);
@@ -209,17 +234,14 @@ export default function AdminDashboard() {
           animation:breathe 1.5s infinite;
         }
 
-        /* ─── CHART ─── */
         .chart-wrap{ height:252px; width:100%; }
 
-        /* ─── BOTTOM ROW: Products + ... ─── */
         .bottom-row{
           display:grid; grid-template-columns:1fr 1fr;
           gap:18px;
         }
         @media(max-width:780px){ .bottom-row{ grid-template-columns:1fr; } }
 
-        /* ─── PRODUCT LIST ─── */
         .product-item{
           display:flex; align-items:center; justify-content:space-between;
           padding:9px 10px; border-radius:10px; transition:background 0.15s; gap:10px;
@@ -236,7 +258,6 @@ export default function AdminDashboard() {
           background:rgba(201,123,58,0.1); color:var(--accent);
         }
 
-        /* ─── STAFF CARD ─── */
         .staff-scroll{
           display:flex; flex-direction:column; gap:9px;
           max-height:200px; overflow-y:auto; padding-right:2px;
@@ -249,7 +270,6 @@ export default function AdminDashboard() {
           background:var(--foam);
           border:1px solid rgba(0,0,0,0.05);
           display:flex; align-items:center; justify-content:space-between; gap:10px;
-          transition:border-color 0.2s;
         }
         .staff-item.working{
           background:rgba(37,99,235,0.04);
@@ -263,33 +283,17 @@ export default function AdminDashboard() {
         }
         .clock-text{ font-size:11px; color:var(--text-dim); }
 
-        .status-out{
-          font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px;
-          background:#f1f5f9; color:#475569; white-space:nowrap;
-        }
-        .status-sick{
-          font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px;
-          background:#fef3c7; color:#92400e; white-space:nowrap;
-        }
-        .status-leave{
-          font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px;
-          background:#ede9fe; color:#5b21b6; white-space:nowrap;
-        }
+        .status-out{ font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px; background:#f1f5f9; color:#475569; white-space:nowrap; }
+        .status-sick{ font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px; background:#fef3c7; color:#92400e; white-space:nowrap; }
+        .status-leave{ font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px; background:#ede9fe; color:#5b21b6; white-space:nowrap; }
         .status-working{
           display:flex; align-items:center; gap:5px;
           font-size:11px; font-weight:700; color:#2563eb; font-style:italic;
           animation:breathe 2s infinite; white-space:nowrap;
         }
-        .status-working-dot{
-          width:6px; height:6px; border-radius:50%; background:#2563eb;
-          flex-shrink:0;
-        }
-        .late-tag{
-          font-size:9px; font-weight:700;
-          background:#fee2e2; color:#dc2626; padding:2px 7px; border-radius:4px;
-        }
+        .status-working-dot{ width:6px; height:6px; border-radius:50%; background:#2563eb; flex-shrink:0; }
+        .late-tag{ font-size:9px; font-weight:700; background:#fee2e2; color:#dc2626; padding:2px 7px; border-radius:4px; }
 
-        /* ─── EMPTY ─── */
         .empty-box{
           display:flex; flex-direction:column; align-items:center; justify-content:center;
           padding:32px 0; gap:8px; color:var(--text-dim); font-size:13px;
@@ -300,7 +304,6 @@ export default function AdminDashboard() {
       <div className="dash-root">
         <Toaster position="top-right" toastOptions={{ style: { fontFamily:'DM Sans', fontSize:13 } }} />
 
-        {/* ── HEADER ── */}
         <div className="dash-header">
           <div>
             <h1>Command Center</h1>
@@ -326,21 +329,15 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ── 4 STAT CARDS ── */}
         <div className="stat-grid">
-          <StatCard label="Pendapatan Hari Ini" value={formatRp(data?.stats.total_revenue ?? 0)}                         sub="Total bersih"       icon="💰" accentColor="#c97b3a" bgColor="rgba(201,123,58,0.1)" loading={isLoading && !data} />
-          <StatCard label="Transaksi Hari Ini"  value={`${data?.stats.total_orders ?? 0} Struk`}                         sub="Order masuk"       icon="🧾" accentColor="#27ae60" bgColor="rgba(39,174,96,0.1)"  loading={isLoading && !data} />
+          <StatCard label="Pendapatan Hari Ini" value={formatRp(data?.stats.total_revenue ?? 0)}                            sub="Total bersih"     icon="💰" accentColor="#c97b3a" bgColor="rgba(201,123,58,0.1)" loading={isLoading && !data} />
+          <StatCard label="Transaksi Hari Ini"  value={`${data?.stats.total_orders ?? 0} Struk`}                          sub="Order masuk"      icon="🧾" accentColor="#27ae60" bgColor="rgba(39,174,96,0.1)"  loading={isLoading && !data} />
           <StatCard label="Kehadiran Karyawan"  value={`${data?.stats.staff_present ?? 0} / ${data?.stats.staff_total ?? 0}`} sub="Aktif hari ini" icon="👥" accentColor="#2980b9" bgColor="rgba(41,128,185,0.1)" loading={isLoading && !data} />
-          <StatCard label="Stok Kritis"         value={`${data?.stats.low_stock_count ?? 0} Menu`}                       sub="Sisa ≤ 10 porsi"   icon="⚠️" accentColor="#c0392b" bgColor="rgba(192,57,43,0.1)" loading={isLoading && !data} />
+          <StatCard label="Stok Kritis"         value={`${data?.stats.low_stock_count ?? 0} Menu`}                        sub="Sisa ≤ 10 porsi"   icon="⚠️" accentColor="#c0392b" bgColor="rgba(192,57,43,0.1)" loading={isLoading && !data} />
         </div>
 
-        {/* ── MAIN GRID ── */}
         <div className="main-grid">
-
-          {/* LEFT: Chart + Bottom Row */}
           <div className="left-col">
-
-            {/* CHART */}
             <div className="card">
               <div className="card-head">
                 <div className="card-title">
@@ -379,10 +376,7 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            {/* BOTTOM ROW: Top Products + (spare for future widget) */}
             <div className="bottom-row">
-
-              {/* TOP PRODUCTS */}
               <div className="card">
                 <div className="card-head">
                   <div className="card-title">
@@ -428,7 +422,6 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* RINGKASAN METODE BAYAR */}
               <div className="card">
                 <div className="card-head">
                   <div className="card-title">
@@ -444,18 +437,17 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   <>
-                    {/* Cash */}
                     {(() => {
-                      const cashOrders = data?.payment_summary?.cash ?? 0;
-                      const qrisOrders = data?.payment_summary?.qris ?? 0;
-                      const total      = cashOrders + qrisOrders || 1;
-                      const cashPct    = Math.round((cashOrders / total) * 100);
-                      const qrisPct    = 100 - cashPct;
+                      const cashCount = paymentSummary.cash;
+                      const nonCashCount = paymentSummary.nonCash;
+                      const total = cashCount + nonCashCount || 1;
+                      const cashPct = Math.round((cashCount / total) * 100);
+                      const nonCashPct = 100 - cashPct;
                       return (
                         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                           {[
-                            { label:'Cash', count:cashOrders, pct:cashPct, color:'#27ae60', bg:'rgba(39,174,96,0.1)', icon:'💵' },
-                            { label:'QRIS / Transfer', count:qrisOrders, pct:qrisPct, color:'#7c3aed', bg:'rgba(124,58,237,0.1)', icon:'📱' },
+                            { label:'Cash', count:cashCount, pct:cashPct, color:'#27ae60', bg:'rgba(39,174,96,0.1)', icon:'💵' },
+                            { label:'Non Cash (QRIS)', count:nonCashCount, pct:nonCashPct, color:'#7c3aed', bg:'rgba(124,58,237,0.1)', icon:'📱' },
                           ].map(m => (
                             <div key={m.label} style={{ background:m.bg, borderRadius:12, padding:'12px 14px' }}>
                               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
@@ -474,11 +466,9 @@ export default function AdminDashboard() {
                   </>
                 )}
               </div>
-
             </div>
           </div>
 
-          {/* RIGHT: Live Staff Monitor */}
           <div className="card" style={{ position:'sticky', top:20 }}>
             <div className="card-head">
               <div className="card-title">
@@ -547,7 +537,6 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-
         </div>
       </div>
     </>
